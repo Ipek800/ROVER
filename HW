@@ -1,0 +1,102 @@
+#include "main.h"  // STM32 HAL kütüphanelerini içeri aktarır
+
+/* Özel değişkenler */
+UART_HandleTypeDef huart2;  // UART2 için yapı tanımlaması
+GPIO_InitTypeDef GPIO_InitStruct = {0};  // GPIO pinlerinin yapılandırılması için kullanılan yapı
+
+/* Prototipler */
+void SystemClock_Config(void);  // Sistem saatinin konfigürasyonu için fonksiyon prototipi
+static void MX_GPIO_Init(void);  // GPIO yapılandırması için fonksiyon prototipi
+static void MX_USART2_UART_Init(void);  // UART2 yapılandırması için fonksiyon prototipi
+void UART_Receive_IT(void);  // UART ile mesaj almak için fonksiyon prototipi
+
+int main(void)
+{
+  /* Sistemi başlat */
+  HAL_Init();  // STM32 HAL kütüphanesini başlatır, mikrodenetleyicinin çalışma koşulunu ayarlar
+  SystemClock_Config();  // Sistem saatini yapılandırır
+
+  /* GPIO ve UART yapılandırmalarını başlat */
+  MX_GPIO_Init();  // GPIO pinlerini yapılandırır (dijital çıkış için)
+  MX_USART2_UART_Init();  // UART2'yi yapılandırır (seri iletişim için)
+
+  /* Sonsuz döngü */
+  while (1)
+  {
+    // Burada UART üzerinden gelen mesajları kontrol et
+    UART_Receive_IT();  // UART üzerinden mesaj alır
+  }
+}
+
+/* GPIO pinlerini başlat */
+static void MX_GPIO_Init(void)
+{
+  __HAL_RCC_GPIOA_CLK_ENABLE();  // GPIOA modülünün saatini aktif eder (GPIO pinlerinin çalışabilmesi için)
+
+  /* PA0 ve PA1 pinlerini dijital çıkış olarak konfigüre et */
+  GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1;  // PA0 ve PA1 pinlerini seçer
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;  // Çıkış modu: Push-pull (dijital çıkış)
+  GPIO_InitStruct.Pull = GPIO_NOPULL;  // Pinler için pull-up veya pull-down dirençleri kullanma
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;  // Pinlerin hızını düşük olarak ayarlar (daha az güç tüketimi)
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);  // GPIOA pinlerini yukarıdaki ayarlara göre başlatır
+}
+
+/* UART başlatma fonksiyonu */
+static void MX_USART2_UART_Init(void)
+{
+  huart2.Instance = USART2;  // USART2'yi kullanacağımızı belirtir
+  huart2.Init.BaudRate = 9600;  // Baud hızını 9600 olarak ayarlar
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;  // 8-bit veri uzunluğu ayarını yapar
+  huart2.Init.StopBits = UART_STOPBITS_1;  // 1 stop bit kullanır
+  huart2.Init.Parity = UART_PARITY_NONE;  // Parite bitini kullanmaz (parite yok)
+  huart2.Init.Mode = UART_MODE_TX_RX;  // Hem veri gönderimi (TX) hem de alımı (RX) modunda çalışır
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;  // Donanım akış kontrolü kullanmaz (yazılım tabanlı akış kontrolü)
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;  // 16x oversampling kullanır (daha hassas okuma için)
+  
+  if (HAL_UART_Init(&huart2) != HAL_OK)  // UART başlatılır, hata olursa Error_Handler() fonksiyonu çağrılır
+  {
+    Error_Handler();  // Hata durumunda çalışacak fonksiyon
+  }
+}
+
+/* UART'dan gelen mesajları kontrol et ve GPIO pinlerini ayarla */
+void UART_Receive_IT(void)
+{
+  uint8_t buffer[2];  // 2 karakterlik veri almak için buffer tanımlanır
+  
+  // UART üzerinden 2 karakter al (gelen veri buffer'a yazılır)
+  if (HAL_UART_Receive(&huart2, buffer, 2, HAL_MAX_DELAY) == HAL_OK)
+  {
+    // İlk karakterin durumu
+    if (buffer[0] == '1')
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_SET);  // PA0 pinini HIGH yap
+    else if (buffer[0] == '0')
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_0, GPIO_PIN_RESET);  // PA0 pinini LOW yap
+    else if (buffer[0] == '2')
+      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_0);  // PA0 pinini TOGGLE yap (yani, HIGH ise LOW, LOW ise HIGH yap)
+
+    // İkinci karakterin durumu
+    if (buffer[1] == '1')
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);  // PA1 pinini HIGH yap
+    else if (buffer[1] == '0')
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);  // PA1 pinini LOW yap
+    else if (buffer[1] == '2')
+      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_1);  // PA1 pinini TOGGLE yap (yani, HIGH ise LOW, LOW ise HIGH yap)
+  }
+}
+
+/* Sistem saat konfigürasyonu (farklı mikrodenetleyiciler için değişebilir) */
+void SystemClock_Config(void)
+{
+  // Bu fonksiyon STM32CubeIDE tarafından otomatik olarak oluşturulabilir ve sistem saatini yapılandırır
+}
+
+/* Hata işleme fonksiyonu */
+void Error_Handler(void)
+{
+  __disable_irq();  // Tüm kesmeleri devre dışı bırakır
+  while (1)
+  {
+    // Hata durumunda yapılacak işlemler (örneğin, LED yakmak veya sistem resetlemek)
+  }
+}
